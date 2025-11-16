@@ -37,6 +37,7 @@ parser.add_argument('--simplify', type=int, default=1)
 
 parser.add_argument('--device_id', type=int, default=0)
 parser.add_argument('--use_tensorrt', action='store_true')
+parser.add_argument('--use_tha4', action='store_true')
 
 parser.add_argument('--model_seperable', action='store_true')
 parser.add_argument('--model_half', action='store_true')

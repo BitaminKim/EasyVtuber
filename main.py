@@ -347,36 +347,27 @@ class ModelClientProcess(Process):
         self.gpu_cache_hit_ratio = Value('f', 0.0)
 
     def run(self):
-        # Check if using THA4 model
-        if args.model == 'tha4':
-            from tha4_core import get_tha4_core
-            self.model = get_tha4_core(
-                device_id=args.device_id,
-                use_eyebrow=args.eyebrow,
-                interpolation_scale=args.interpolation_scale if args.use_interpolation else 1,
-                yaml_path=self.yaml_path
-            )
-        else:
-            # Use existing ezvtb_rt interface for THA3 models
-            self.model = get_core(device_id=args.device_id,
-                                  use_tensorrt=args.use_tensorrt,
+        # Use unified ezvtb_rt interface for both THA3 and THA4
+        self.model = get_core(device_id=args.device_id,
+                              use_tensorrt=args.use_tensorrt,
+                              use_tha4=args.use_tha4,
 
-                                  model_seperable = args.model_seperable,
-                                  model_half=args.model_half, 
-                                  model_cache_size=args.max_gpu_cache_len, 
-                                  model_use_eyebrow=args.eyebrow,
+                              model_seperable = args.model_seperable,
+                              model_half=args.model_half, 
+                              model_cache_size=args.max_gpu_cache_len, 
+                              model_use_eyebrow=args.eyebrow,
 
-                                  use_interpolation=args.use_interpolation,
-                                  interpolation_scale=args.interpolation_scale,
-                                  interpolation_half=args.interpolation_half,
+                              use_interpolation=args.use_interpolation,
+                              interpolation_scale=args.interpolation_scale,
+                              interpolation_half=args.interpolation_half,
 
-                                  cacher_quality=args.cacher_quality,
-                                  cacher_ram_size=args.max_cache_len,
+                              cacher_quality=args.cacher_quality,
+                              cacher_ram_size=args.max_cache_len,
 
-                                  use_sr=args.use_sr,
-                                  sr_half=args.sr_half,
-                                  sr_x4=args.sr_x4,
-                                  sr_noise=args.sr_noise)
+                              use_sr=args.use_sr,
+                              sr_half=args.sr_half,
+                              sr_x4=args.sr_x4,
+                              sr_noise=args.sr_noise)
         self.model.setImage(self.input_image)
         input_pose = np.zeros((1, 45), dtype=np.float32)
 

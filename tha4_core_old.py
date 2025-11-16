@@ -1,26 +1,20 @@
 """
-THA4 Core - PyTorch THA4 model with optional TensorRT RIFE/SR acceleration
+THA4 Core - ONNX-based THA4 model with optional TensorRT/RIFE/SR acceleration
 Provides interface compatible with CoreTRT/CoreORT for THA4 models
+Uses teacher models (5 models) from onnx_model_tha4 folder
 """
-import torch
 import numpy as np
-import cv2
-from tha4_adapter import THA4Wrapper, convert_tha3_pose_to_tha4
-
-# Import color space conversion from THA4
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tha4', 'src'))
-from tha4.image_util import convert_linear_to_srgb
 
-# Add ezvtuber-rt path for TensorRT modules
+# Add ezvtuber-rt path for TensorRT/RIFE/SR modules
 dir_path = os.path.dirname(os.path.realpath(__file__))
 ezvtb_path = os.path.join(dir_path, 'ezvtuber-rt')
 if os.path.exists(ezvtb_path) and ezvtb_path not in sys.path:
     sys.path.append(ezvtb_path)
 
 
-class THA4Core:
+class THA4CoreTRT:
     """
     THA4 Core class - Pure PyTorch implementation (No TensorRT)
     

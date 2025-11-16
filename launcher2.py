@@ -438,8 +438,7 @@ class LauncherPanel(wx.Panel):
 
             if args['model_select'] is not None:
                 if 'tha4' in args['model_select']:
-                    run_args.append('--model')
-                    run_args.append('tha4')
+                    run_args.append('--use_tha4')
                 else:
                     if 'seperable' in args['model_select']:
                         run_args.append('--model_seperable')
