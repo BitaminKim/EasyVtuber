@@ -17,6 +17,11 @@ else:
 if project_path not in sys.path:
     sys.path.append(project_path)
 
+# Initialize model data path to point to data/models directory
+import ezvtb_rt
+models_path = os.path.join(dir_path, 'data', 'models')
+ezvtb_rt.init_model_path(models_path)
+
 def get_core(
         #Device setting
         device_id:int = 0, 
@@ -109,47 +114,36 @@ def get_core(
 
     core = None
     if use_tensorrt:
-        if use_tha4:
-            from ezvtb_rt.core_tha4 import CoreTHA4TRT
-            core = CoreTHA4TRT(
-                tha_model_dir,
-                vram_cache_size=model_cache_size,
-                use_eyebrow=model_use_eyebrow,
-                rife_dir=rife_model_path if rife_model_path else None,
-                sr_dir=sr_model_path if sr_model_path else None,
-                cache_max_volume=cacher_ram_size,
-                cache_quality=cacher_quality)
-        else:
-            from ezvtb_rt.core import CoreTRT
-            core = CoreTRT(
-                tha_model_dir,
-                vram_cache_size=model_cache_size,
-                use_eyebrow=model_use_eyebrow,
-                rife_dir=rife_model_path if rife_model_path else None,
-                sr_dir=sr_model_path if sr_model_path else None,
-                cache_max_volume=cacher_ram_size,
-                cache_quality=cacher_quality)
+        from ezvtb_rt.core import CoreTRT
+        core = CoreTRT(
+            tha_model_version='v4' if use_tha4 else 'v3',
+            tha_model_seperable=model_seperable,
+            tha_model_fp16=model_half,
+            rife_model_enable=use_interpolation,
+            rife_model_scale=interpolation_scale,
+            rife_model_fp16=interpolation_half,
+            sr_model_enable=use_sr,
+            sr_model_scale=4 if sr_x4 else 2,
+            sr_model_noise=sr_noise,
+            sr_model_fp16=sr_half,
+            vram_cache_size=model_cache_size,
+            cache_max_giga=cacher_ram_size,
+            use_eyebrow=model_use_eyebrow)
     else:
-        if use_tha4:
-            from ezvtb_rt.core_tha4_ort import CoreTHA4ORT
-            core = CoreTHA4ORT(
-                tha_model_dir,
-                rife_path=rife_model_path if rife_model_path else None,
-                sr_path=sr_model_path if sr_model_path else None,
-                device_id=device_id,
-                cache_max_volume=cacher_ram_size,
-                cache_quality=cacher_quality,
-                use_eyebrow=model_use_eyebrow)
-        else:
-            from ezvtb_rt.core_ort import CoreORT
-            core = CoreORT(
-                tha_model_dir,
-                rife_path=rife_model_path if rife_model_path else None,
-                sr_path=sr_model_path if sr_model_path else None,
-                device_id=device_id,
-                cache_max_volume=cacher_ram_size,
-                cache_quality=cacher_quality,
-                use_eyebrow=model_use_eyebrow)
+        from ezvtb_rt.core_ort import CoreORT
+        core = CoreORT(
+            tha_model_version='v4' if use_tha4 else 'v3',
+            tha_model_seperable=model_seperable,
+            tha_model_fp16=model_half,
+            rife_model_enable=use_interpolation,
+            rife_model_scale=interpolation_scale,
+            rife_model_fp16=interpolation_half,
+            sr_model_enable=use_sr,
+            sr_model_scale=4 if sr_x4 else 2,
+            sr_model_noise=sr_noise,
+            sr_model_fp16=sr_half,
+            cache_max_giga=cacher_ram_size,
+            use_eyebrow=model_use_eyebrow)
 
     return core
     
