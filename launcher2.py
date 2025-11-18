@@ -80,9 +80,6 @@ def refreshList():
     for item in sorted(os.listdir(dirPath), key=lambda x: -os.path.getmtime(os.path.join(dirPath, x))):
         if '.png' == item[-4:]:
             characterList.append(item[:-4])
-        elif '.yaml' == item[-5:] or '.yml' == item[-4:]:
-            # Support THA4 YAML files
-            characterList.append(item[:-5] if item.endswith('.yaml') else item[:-4])
 
 
 refreshList()
@@ -230,32 +227,9 @@ class LauncherPanel(wx.Panel):
                   choices=['10', '15', '20', '30', '60'])
         addOption('preset', title='Performance Preset', desc='性能预设，注意修改后会覆盖后续配置',
                   choices=['Low', 'Medium', 'High', 'Ultra', 'Custom'])
-        model_select_option = addOption('model_select', title='Model Select', desc='选择使用的模型\nStandard Full精度较高性能较低',
-                  choices=['Seperable Half', 'Seperable Full', 'Standard Half', 'Standard Full', 'THA4'],
-                  mapping=['seperable_half', 'seperable_full', 'standard_half', 'standard_full', 'tha4'])
-        
-        # Add event handler for character selection to auto-lock THA4 when YAML is selected
-        def on_character_change(event):
-            character_name = self.optionDict['character'].GetValue()
-            # Check if selected character has a YAML file
-            yaml_exists = False
-            for ext in ['.yaml', '.yml']:
-                if os.path.exists(os.path.join(dirPath, character_name + ext)):
-                    yaml_exists = True
-                    break
-            
-            if yaml_exists:
-                # Auto-select THA4 model and disable the control
-                model_select_option.control.SetSelection(4)  # THA4 is index 4
-                model_select_option.control.Enable(False)
-            else:
-                # Re-enable model selection for non-YAML files
-                model_select_option.control.Enable(True)
-        
-        self.optionDict['character'].control.Bind(wx.EVT_CHOICE, on_character_change)
-        
-        # Trigger initial check
-        on_character_change(None)
+        addOption('model_select', title='Model Select', desc='选择使用的模型\nStandard Full精度较高性能较低',
+                  choices=['Seperable Half', 'Seperable Full', 'Standard Half', 'Standard Full', 'THA4 Half', 'THA4 Full'],
+                  mapping=['seperable_half', 'seperable_full', 'standard_half', 'standard_full', 'tha4_half', 'tha4_full'])
         addOption('ram_cache_size', title='RAM Cache Size', desc='分配内存缓存大小\n用于存储最终运算结果',
                   choices=['Off', '1GB', '2GB', '4GB', '8GB', '16GB'],
                   mapping=['0b', '1gb', '2gb', '4gb', '8gb', '16gb'])
@@ -439,6 +413,8 @@ class LauncherPanel(wx.Panel):
             if args['model_select'] is not None:
                 if 'tha4' in args['model_select']:
                     run_args.append('--use_tha4')
+                    if 'half' in args['model_select']:
+                        run_args.append('--model_half')
                 else:
                     if 'seperable' in args['model_select']:
                         run_args.append('--model_seperable')

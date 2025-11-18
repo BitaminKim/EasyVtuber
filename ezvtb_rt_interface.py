@@ -61,11 +61,10 @@ def get_core(
 
     # Determine model directory based on THA version
     if use_tha4:
-        # THA4: Use onnx_model_tha4 directory
-        if use_tensorrt:
-            tha_model_dir = os.path.join('.', 'onnx_model_tha4', 'fp16')
-        else:
-            tha_model_dir = os.path.join('.', 'onnx_model_tha4', 'fp32')
+        # THA4: Use data/models/tha4 directory with precision selection
+        tha_model_dir = os.path.join(
+            '.', 'data', 'models', 'tha4',
+            'fp16' if model_half else 'fp32')
         print(f'THA4 Mode - Model Path: {tha_model_dir}')
     else:
         # THA3: Use data/models/tha3 directory

@@ -330,13 +330,12 @@ class MouseClientProcess(Process):
 
 
 class ModelClientProcess(Process):
-    def __init__(self, input_image, yaml_path=None):
+    def __init__(self, input_image):
         super().__init__()
         self.should_terminate = Value('b', False)
         self.updated = Value('b', False)
         self.data = None
         self.input_image = input_image
-        self.yaml_path = yaml_path
         self.output_queue = Queue()
         self.input_queue = Queue()
         self.shms = [shared_memory.SharedMemory(create=True, size=args.model_output_size * args.model_output_size * 4)
@@ -532,47 +531,27 @@ class ModelClientProcess(Process):
 
 @torch.no_grad()
 def main():
-    # Check if character is a YAML file (THA4 model)
-    yaml_path = None
-    is_tha4 = False
-    
-    # Try to find YAML file
-    for ext in ['.yaml', '.yml']:
-        yaml_candidate = f"data/images/{args.character}{ext}"
-        if os.path.exists(yaml_candidate):
-            yaml_path = yaml_candidate
-            is_tha4 = True
-            print(f"Detected THA4 YAML config: {yaml_path}")
-            # Override model selection to THA4
-            args.model = 'tha4'
-            break
-    
-    # Load character image (only for non-THA4 models)
-    if not is_tha4:
-        img = Image.open(f"data/images/{args.character}.png")
-        img = img.convert('RGBA')
-        ow, oh = img.size
-        for i, px in enumerate(img.getdata()):
-            if px[3] <= 0:
-                y = i // ow
-                x = i % ow
-                img.putpixel((x, y), (0, 0, 0, 0))
-        if ow != 512 or oh != 512:
-            img = resize_to_512_center(img)
-        if args.alpha_clean:
-            curves = {
-                'a': [
-                    (60, 0),
-                    (200, 255)
-                ]
-            }
-            img = apply_color_curves(img, curves)
-        input_image = np.array(img)
-        input_image = cv2.cvtColor(input_image, cv2.COLOR_RGBA2BGRA)
-    else:
-        # For THA4, create a dummy image (will be ignored)
-        input_image = np.zeros((512, 512, 4), dtype=np.uint8)
-        print("THA4 mode: Character image will be loaded from YAML")
+    # Load character image
+    img = Image.open(f"data/images/{args.character}.png")
+    img = img.convert('RGBA')
+    ow, oh = img.size
+    for i, px in enumerate(img.getdata()):
+        if px[3] <= 0:
+            y = i // ow
+            x = i % ow
+            img.putpixel((x, y), (0, 0, 0, 0))
+    if ow != 512 or oh != 512:
+        img = resize_to_512_center(img)
+    if args.alpha_clean:
+        curves = {
+            'a': [
+                (60, 0),
+                (200, 255)
+            ]
+        }
+        img = apply_color_curves(img, curves)
+    input_image = np.array(img)
+    input_image = cv2.cvtColor(input_image, cv2.COLOR_RGBA2BGRA)
 
     print("Character Image Loaded:", args.character)
     cap = None
@@ -676,7 +655,7 @@ def main():
     }
 
     model_output = None
-    model_process = ModelClientProcess(input_image, yaml_path=yaml_path)
+    model_process = ModelClientProcess(input_image)
     model_process.daemon = True
     model_process.start()
     model_output_nps = [np.ndarray((args.model_output_size, args.model_output_size, 4), dtype=np.uint8,
