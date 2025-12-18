@@ -15,6 +15,7 @@ from torch import Tensor
 from torch.nn import Module
 from typing import List
 import matplotlib.pyplot as plt
+from onnxconverter_common import float16
 
 # =================================================================================
 # START: Monkey Patch for torch.nn.functional.affine_grid (DEVICE-AWARE)
@@ -60,7 +61,7 @@ if len(sys.argv) < 2:
     raise ValueError('Missing model name')
 
 MODEL_NAME = sys.argv[1]
-HALF = '--fp16' in sys.argv
+HALF = False
 FORCE_CPU = '--cpu' in sys.argv
 
 # Check CUDA availability
@@ -198,22 +199,19 @@ class FaceMorpherWrapper(Module):
     def forward(self, pose: Tensor) -> Tensor:
         """
         Args:
-            pose: Full pose parameters [1, 45]
+            pose: Full pose parameters [1, 39]
         Returns:
             face_output: Face morphed image [1, 4, 128, 128] in normalized format
         """
-        # Extract first 39 dimensions for face morpher
-        face_pose = pose[:, 0:39]
-        
         # Run face morpher (SIREN generates image from pose only)
-        face_output = self.face_morpher.forward(face_pose)
+        face_output = self.face_morpher.forward(pose)
         
         return face_output
 
 face_morpher_wrapper = FaceMorpherWrapper(export_modules['face_morpher']).eval()
 
 # Test inputs
-face_pose_export = torch.zeros(1, 45, dtype=export_dtype)
+face_pose_export = torch.zeros(1, 39, dtype=export_dtype)
 
 # Export
 with torch.no_grad():
@@ -226,15 +224,17 @@ torch.onnx.export(
     opset_version=16,
     input_names=['pose'],
     output_names=['face_morphed'],
-    dynamic_axes={
-        'pose': {0: 'batch'}
-    }
+    external_data =False,
+    optimize =True,
+    verify =True,
+    dynamo =False,
 )
 
 onnx_model = onnx.load(TMP_FILE_WRITE)
 onnx.checker.check_model(onnx_model)
 print(f"  Original model inputs: {[inp.name for inp in onnx_model.graph.input]}")
 
+# onnx_model = float16.convert_float_to_float16(onnx_model, keep_io_types=True)
 # Simplify with input/output names preservation
 onnx_model_sim, check = simplify(onnx_model, skip_fuse_bn=True)
 if check:
@@ -299,27 +299,38 @@ class BodyMorpherWrapper(Module):
 
 body_morpher_wrapper = BodyMorpherWrapper(export_modules['body_morpher']).eval()
 
+full_pose_export = torch.zeros(1, 45, dtype=export_dtype)
+
 # Export
 with torch.no_grad():
-    body_morpher_res_export = body_morpher_wrapper(cv_img_tensor_export, face_morpher_res_export, face_pose_export)
+    body_morpher_res_export = body_morpher_wrapper(cv_img_tensor_export, face_morpher_res_export, full_pose_export)
 
 torch.onnx.export(
     body_morpher_wrapper,
-    (cv_img_tensor_export, face_morpher_res_export, face_pose_export),
+    (cv_img_tensor_export, face_morpher_res_export, full_pose_export),
     TMP_FILE_WRITE,
     opset_version=16,
     input_names=['input_image', 'face_morphed', 'pose'],
     output_names=['result', 'cv_result'],
-    dynamic_axes={
-        'input_image': {0: 'height', 1: 'width'},
-        'face_morphed': {0: 'batch'},
-        'pose': {0: 'batch'}
-    }
+    external_data =False,
+    optimize =True,
+    verify =True,
+    dynamo =False,
 )
 
 onnx_model = onnx.load(TMP_FILE_WRITE)
 onnx.checker.check_model(onnx_model)
 print(f"  Original model inputs: {[inp.name for inp in onnx_model.graph.input]}")
+
+# onnx_model = float16.convert_float_to_float16(onnx_model, keep_io_types=True)
+# for node in onnx_model.graph.node:
+#     if node.name == "/Cast":
+#         for attr in node.attribute:
+#             if attr.name == "to":
+#                 attr.i = onnx.TensorProto.FLOAT16  # Set to 10 (FP16)
+#                 break
+#     if node.name == "/Squeeze":
+#         node.input[0] = "/ScatterND_14_cast_to_result"
 
 # Simplify with input/output names preservation
 onnx_model_sim, check = simplify(onnx_model, skip_fuse_bn=True)
@@ -372,7 +383,7 @@ class THA4StudentONNXRunner:
         
         # Step 1: Face Morpher (SIREN only needs pose, generates face from scratch)
         face_res = self.face_morpher_sess.run(None, {
-            'pose': pose
+            'pose': pose[:, :39]
         })
         
         # Step 2: Body Morpher (needs original image, face result, and pose)
