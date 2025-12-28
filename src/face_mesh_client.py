@@ -7,6 +7,8 @@ from .utils.channel_shared_mem import SharedMemoryExclusiveChannel
 from .utils.pose import get_pose
 from .utils.fps import FPS
 from .utils.filter import OneEuroFilterNumpy
+from OneEuroFilter import OneEuroFilter
+import time
 
 
 class FaceMeshClientProcess(Process):
@@ -38,7 +40,6 @@ class FaceMeshClientProcess(Process):
 
         
         pose_filter = OneEuroFilterNumpy(freq=input_fps.view(), mincutoff=args.filter_min_cutoff, beta=args.filter_beta)
-
         position_offset = None
         print("Webcam Input Running at {:.2f} FPS".format(input_fps.view()))
         position_vector = np.array([0, 0, 0, 1], dtype=np.float32)
@@ -66,14 +67,13 @@ class FaceMeshClientProcess(Process):
             mouth_eye_vector = [0.0] * 27
             pose_vector = [0.0] * 6
 
-            mouth_eye_vector[2] = (eye_l_h_temp + eye_r_h_temp) / 2.0
-            mouth_eye_vector[3] = (eye_l_h_temp + eye_r_h_temp) / 2.0
+            mouth_eye_vector[2] = min(eye_l_h_temp, eye_r_h_temp)
+            mouth_eye_vector[3] = min(eye_l_h_temp, eye_r_h_temp)
 
             mouth_eye_vector[14] = mouth_ratio * 1.5
 
-            mouth_eye_vector[25] = (eye_y_ratio + eye_x_ratio) / 2.0
-            mouth_eye_vector[26] = (eye_y_ratio + eye_x_ratio) / 2.0
-
+            mouth_eye_vector[25] = 0.0 # keep iris stable for user demo
+            mouth_eye_vector[26] = 0.0
             if position_offset is None:
                 position_offset = [(x_angle - 1.5) * 1.6, y_angle * 2.0 , (z_angle + 1.5) * 2]
             pose_vector[0] = (x_angle - 1.5) * 1.6 - position_offset[0]

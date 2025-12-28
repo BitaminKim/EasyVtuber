@@ -6,13 +6,15 @@ import numpy as np
 from .utils.channel_shared_mem import SharedMemoryExclusiveChannel
 from .utils.fps import FPS
 from .utils.filter import OneEuroFilterNumpy
+from OneEuroFilter import OneEuroFilter
+import time
 
 class OSFClientProcess(Process):
     def __init__(self, pose_position_shm: shared_memory.SharedMemory):
         super().__init__()
         self.pose_position_shm = pose_position_shm
-        self.address = args.osf.split(':')[0]
-        self.port = int(args.osf.split(':')[1])
+        self.address = args.osf_input.split(':')[0]
+        self.port = int(args.osf_input.split(':')[1])
         self.fps = Value('f', 0.0)
 
     def run(self):
@@ -40,7 +42,8 @@ class OSFClientProcess(Process):
 
         pose_filter = OneEuroFilterNumpy(freq=input_fps.view(), mincutoff=args.filter_min_cutoff, beta=args.filter_beta)
         position_filter = OneEuroFilterNumpy(freq=input_fps.view(), mincutoff=args.filter_min_cutoff, beta=args.filter_beta)
-
+        iris_x_filter = OneEuroFilter(freq=input_fps.view(), mincutoff=0.1, beta=0.3) # extra filter for iris movement
+        iris_y_filter = OneEuroFilter(freq=input_fps.view(), mincutoff=0.1, beta=0.3) # extra filter for iris movement
         rotation_offset = None
         print("OpenSeeFace Input Running at {:.2f} FPS".format(input_fps.view()))
         while True:
@@ -132,11 +135,11 @@ class OSFClientProcess(Process):
             mouth_eye_vector[2] = 1 - data['leftEyeOpen']
             mouth_eye_vector[3] = 1 - data['rightEyeOpen']
 
-            mouth_eye_vector[14] = max(data['MouthOpen'], 0) * 2 # Open larger mouth
+            mouth_eye_vector[14] = max(data['MouthOpen'], 0) * 1.5 # Open larger mouth
             # print(mouth_eye_vector[14])
 
-            mouth_eye_vector[25] = -data['eyeRotationY'] * 3 - (data['rotationX']) / 57.3 * 1.5
-            mouth_eye_vector[26] = data['eyeRotationX'] * 3 + (data['rotationY']) / 57.3
+            mouth_eye_vector[25] = iris_x_filter(-data['eyeRotationY'] * 3 - (data['rotationX']) / 57.3 * 1.5, timestamp=time.perf_counter())
+            mouth_eye_vector[26] = iris_y_filter(data['eyeRotationX'] * 3 + (data['rotationY']) / 57.3, timestamp=time.perf_counter())
             # print(mouth_eye_vector[25:27])
             eyebrow_vector[6] = data['EyebrowUpDownLeft']
             eyebrow_vector[7] = data['EyebrowUpDownRight']

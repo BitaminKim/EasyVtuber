@@ -80,8 +80,9 @@ if not args.cam_input and args.mouse_input is None \
 
 if args.use_sr:
     args.anime4k = False  # Disable anime4k if SR is enabled
-if args.anime4k:
-    args.use_sr = False  # Disable SR if anime4k is enabled
+
+if args.output_spout2:
+    args.alpha_split = False  # Disable alpha split for spout2 output
 
 args.model_output_size = 1024 if args.use_sr or args.anime4k else 512
 

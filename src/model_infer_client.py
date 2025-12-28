@@ -17,8 +17,10 @@ class ModelClientProcess(Process):
         self.input_image = input_image
         self.pose_position_shm = pose_position_shm  # 45 floats for pose, 4 floats for position
         
-        self.ret_shape = (args.interpolation_scale, args.model_output_size, args.model_output_size, 4)
-        self.ret_nbytes = args.interpolation_scale * args.model_output_size * args.model_output_size * 4 # RGBA
+        self.alpha_width_scale = 2 if args.alpha_split else 1
+        self.ret_channels = 3 if args.output_virtual_cam or args.output_debug else 4
+        self.ret_shape = (args.interpolation_scale, args.model_output_size, self.alpha_width_scale * args.model_output_size, self.ret_channels)
+        self.ret_nbytes = self.alpha_width_scale * args.interpolation_scale * args.model_output_size * args.model_output_size * self.ret_channels # RGBA
         self.ret_shared_mem = shared_memory.SharedMemory(create=True, size=self.ret_nbytes)
         
         self.last_model_interval = Value('f', 0.0)
@@ -40,9 +42,9 @@ class ModelClientProcess(Process):
             for i in range(args.interpolation_scale)
         ]
         np_ret_shms = [
-            np.ndarray((args.model_output_size, args.model_output_size, 4), dtype=np.uint8,
-                        buffer=self.ret_shared_mem.buf[i * args.model_output_size * args.model_output_size * 4:
-                                                       (i + 1) * args.model_output_size * args.model_output_size * 4])
+            np.ndarray((args.model_output_size, self.alpha_width_scale * args.model_output_size, self.ret_channels), dtype=np.uint8,
+                        buffer=self.ret_shared_mem.buf[i * self.alpha_width_scale * args.model_output_size * args.model_output_size * self.ret_channels:
+                                                       (i + 1) * self.alpha_width_scale * args.model_output_size * args.model_output_size * self.ret_channels])
             for i in range(args.interpolation_scale)
         ]
 
@@ -151,7 +153,7 @@ class ModelClientProcess(Process):
                 rm,
                 (bgra_image.shape[1], bgra_image.shape[0]))
 
-            if args.debug_input:
+            if args.output_debug:
                 cv2.putText(bgra_image, str('OUT_FPS:%.1f' % self.pipeline_fps_number.value), (0, 16), cv2.FONT_HERSHEY_PLAIN, 1,
                             (0, 255, 0), 1)
                 cv2.putText(bgra_image, str(
@@ -180,19 +182,25 @@ class ModelClientProcess(Process):
                 rgb_channels = np.ascontiguousarray(rgba_image[:,:,:3]) 
 
             if args.anime4k:
-                rgb_output = self.a4k_processor(rgb_channels)
-                alpha_output = cv2.resize(alpha_channel, None, fx=2, fy=2)
-                rgba_image = cv2.merge((rgb_output, alpha_output))
+                rgb_channels = self.a4k_processor(rgb_channels)
+                alpha_channel = cv2.resize(alpha_channel, None, fx=2, fy=2)
+                rgba_image = cv2.merge((rgb_channels, alpha_channel))
             if args.alpha_split:
                 alpha_image = cv2.cvtColor(alpha_channel, cv2.COLOR_GRAY2RGB)
-                rgba_image = cv2.hconcat([rgba_image, alpha_image])
+                rgb_channels = cv2.hconcat([rgb_channels, alpha_image])
 
-            
-            if args.debug_input:
-                if args.anime4k or args.alpha_split:
-                    bgra_image = cv2.cvtColor(rgba_image, cv2.COLOR_RGBA2BGRA)
-                ret.append(bgra_image)
-            else: 
+            if args.output_debug:
+                if args.alpha_split:
+                    bgr_channels = cv2.cvtColor(rgb_channels, cv2.COLOR_RGB2BGR)
+                else:
+                    if args.anime4k:
+                        bgr_channels = cv2.cvtColor(rgba_image, cv2.COLOR_RGBA2BGR)
+                    else:
+                        bgr_channels = cv2.cvtColor(bgra_image, cv2.COLOR_BGRA2BGR)
+                ret.append(bgr_channels)
+            elif args.output_virtual_cam:
+                ret.append(rgb_channels)
+            else:
                 ret.append(rgba_image)
         return ret
     

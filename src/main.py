@@ -63,14 +63,16 @@ def main():
     infer_process.daemon = True
     infer_process.start()
 
+    cam_width_scale = 2 if args.alpha_split else 1
+    ret_channels = 3 if args.output_virtual_cam or args.output_debug else 4
     ret_batch_shm_channels = [
         SharedMemoryExclusiveChannel(infer_process.ret_shared_mem, ctrl_name=f"ret_shm_ctrl_batch_{i}")
         for i in range(args.interpolation_scale)
     ]
     np_ret_shms = [
-        np.ndarray((args.model_output_size, args.model_output_size, 4), dtype=np.uint8,
-                    buffer=infer_process.ret_shared_mem.buf[i * args.model_output_size * args.model_output_size * 4:
-                                                    (i + 1) * args.model_output_size * args.model_output_size * 4])
+        np.ndarray((args.model_output_size, cam_width_scale * args.model_output_size, ret_channels), dtype=np.uint8,
+                    buffer=infer_process.ret_shared_mem.buf[i * cam_width_scale * args.model_output_size * args.model_output_size * ret_channels:
+                                                    (i + 1) * cam_width_scale * args.model_output_size * args.model_output_size * ret_channels])
         for i in range(args.interpolation_scale)
     ]
 
@@ -89,9 +91,13 @@ def main():
         for i in range(args.interpolation_scale):
             wait_until(last_time + interval)
             last_time += interval
-            cv2.imshow("Output Frame Batch {}".format(i), np_ret_shms[i])
+
+            if args.output_virtual_cam:
+                pass
+            else:
+                cv2.imshow("Output Frame Batch {}".format(i), np_ret_shms[i])
+                cv2.waitKey(1)
             ret_batch_shm_channels[i].release()
-            cv2.waitKey(1)
         print("pipeline FPS: {:.2f}, Input FPS: {:.2f}, Model Avg Interval: {:.2f} ms, Cache Hit Ratio: {:.2f}%, GPU Cache Hit Ratio: {:.2f}%, current time {:.5f}".format(
             infer_process.pipeline_fps_number.value,
             input_fps.value,
