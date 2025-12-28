@@ -199,6 +199,10 @@ class ModelClientProcess(Process):
                         bgr_channels = cv2.cvtColor(bgra_image, cv2.COLOR_BGRA2BGR)
                 ret.append(bgr_channels)
             elif args.output_virtual_cam:
+                if rgb_channels is None:
+                    rgb_channels = cv2.cvtColor(bgra_image, cv2.COLOR_BGRA2RGB)
+                if args.anime4k and not args.alpha_split:
+                    rgb_channels = cv2.cvtColor(rgba_image, cv2.COLOR_RGBA2RGB)
                 ret.append(rgb_channels)
             else:
                 ret.append(rgba_image)

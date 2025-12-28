@@ -8,7 +8,8 @@ from .utils.channel_shared_mem import SharedMemoryExclusiveChannel
 from multiprocessing import shared_memory
 from .utils.timer_wait import wait_until
 from PIL import Image
-
+from .utils.fps import FPS
+import pyvirtualcam
 
 
 def main():
@@ -79,7 +80,16 @@ def main():
     last_time : float = time.perf_counter()
     interval : float = 1.0 / args.frame_rate_limit if args.frame_rate_limit > 0 else 0.0
     
-    from .utils.fps import FPS
+    if args.output_virtual_cam:
+        virtual_cam = pyvirtualcam.Camera(width=cam_width_scale * args.model_output_size,
+                                    height=args.model_output_size,
+                                    fps=args.frame_rate_limit,
+                                    backend='obs',
+                                    fmt=pyvirtualcam.PixelFormat.RGB)
+        print(f'Using virtual camera: {virtual_cam.device}')
+    else:
+        print("Using OpenCV windows for output display.")
+
     pipeline_fps = FPS()
     
     print("Interval set to {:.3f} seconds".format(interval))
@@ -93,7 +103,7 @@ def main():
             last_time += interval
 
             if args.output_virtual_cam:
-                pass
+                virtual_cam.send(np_ret_shms[i])
             else:
                 cv2.imshow("Output Frame Batch {}".format(i), np_ret_shms[i])
                 cv2.waitKey(1)
@@ -102,8 +112,8 @@ def main():
             infer_process.pipeline_fps_number.value,
             input_fps.value,
             infer_process.average_model_interval.value * 1000,
-            infer_process.cache_hit_ratio.value,
-            infer_process.gpu_cache_hit_ratio.value,
+            infer_process.cache_hit_ratio.value * 100,
+            infer_process.gpu_cache_hit_ratio.value * 100,
             pipeline_fps()
         ), end ='\r', flush=True)
             
