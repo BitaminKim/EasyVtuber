@@ -29,10 +29,12 @@ cache_simplify_quality_map = {
 }
 default_arg = {
     'character': 'lambda_00',
-    'input': 2,
+    'input': 3,
     'output': 2,
     'ifm': None,
     'osf': '127.0.0.1:11573',
+    'min_cutoff': 50,
+    'beta': 80,
     'is_extend_movement': False,
     'is_alpha_split': False,
     'is_bongo': False,
@@ -42,11 +44,11 @@ default_arg = {
     'ram_cache_size': '2gb',
     'vram_cache_size': '2gb',
     'model_select': 'seperable_half',
-    'interpolation': 'x2_half',
+    'interpolation': 'x3_half',
     'frame_rate_limit': '30',
-    'sr': 'Off',
+    'sr': 'anime4k_x2',
     'use_tensorrt': False,
-    'preset': 'Medium'
+    'preset': 'Low'
 }
 
 try:
@@ -116,9 +118,32 @@ def scanStudentModels():
 refreshList()
 scanStudentModels()
 
+def min_cutoff_mapper(value, revert=False):
+    """
+    非线性映射函数：0-100整数 <-> 0-100浮点数
+    使用平方函数，使得越接近0数字越密集
+    """
+    if revert:
+        # 浮点 -> 整数: 使用平方根反向映射
+        return int((value / 100.0) ** 0.5 * 100)
+    # 整数 -> 浮点: 使用平方映射
+    return (value / 100.0) ** 2 * 100.0
+
+
+def beta_mapper(value, revert=False):
+    """
+    非线性映射函数：0-100整数 <-> 0-1浮点数
+    使用平方函数，使得越接近0数字越密集
+    """
+    if revert:
+        # 浮点 -> 整数: 使用平方根反向映射
+        return int((value ** 0.5) * 100)
+    # 整数 -> 浮点: 使用平方映射
+    return (value / 100.0) ** 2
+
 
 class OptionPanel(wx.Panel):
-    def __init__(self, parent, title='', desc='', choices=None, mapping=None, type=0, default=None, disabled=False):
+    def __init__(self, parent, title='', desc='', choices=None, mapping=None, type=0, default=None, disabled=False, mapper=min_cutoff_mapper):
         wx.Panel.__init__(self, parent)
         self.type = type
         if mapping is not None:
@@ -172,8 +197,38 @@ class OptionPanel(wx.Panel):
                         self.control.SetValue(default)
             except:
                 pass
+        elif self.type == 3:
+            # Slider type for float values 0.0 to 1.0
+            sliderSizer = wx.BoxSizer(wx.HORIZONTAL)
+            self.control = wx.Slider(self, wx.ID_ANY, value=50, minValue=0, maxValue=100, 
+                                    style=wx.SL_HORIZONTAL)
+            self.control.SetMinSize(wx.Size(250, -1))
+            
+            # Add a label to show the float value
+            self.valueLabel = wx.StaticText(self, wx.ID_ANY, "0.50")
+            self.valueLabel.SetMinSize(wx.Size(50, -1))
+            
+            try:
+                if default is not None:
+                    self.control.SetValue(default)
+                    self.valueLabel.SetLabelText(f"{mapper(default):.2f}")
+            except:
+                pass
+            
+            # Update label when slider changes
+            def onSliderChange(event):
+                val = mapper(self.control.GetValue())
+                self.valueLabel.SetLabelText(f"{val:.2f}")
+            self.control.Bind(wx.EVT_SLIDER, onSliderChange)
+            
+            sliderSizer.Add(self.control, 1, wx.ALIGN_CENTER_VERTICAL)
+            sliderSizer.Add(self.valueLabel, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 10)
+            mainSizer.Add(sliderSizer, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 20)
+            # Skip the normal control addition below
+            self.control._slider_added = True
 
-        mainSizer.Add(self.control, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 20)
+        if not (self.type == 3 and hasattr(self.control, '_slider_added')):
+            mainSizer.Add(self.control, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 20)
         # self.SetBackgroundColour('#000000') 
 
     def GetValue(self):
@@ -182,6 +237,8 @@ class OptionPanel(wx.Panel):
         elif self.type == 1:
             ret = self.control.GetValue()
         elif self.type == 2:
+            ret = self.control.GetValue()
+        elif self.type == 3:
             ret = self.control.GetValue()
         if self.mapping is not None:
             return self.mapping[ret]
@@ -245,6 +302,10 @@ class LauncherPanel(wx.Panel):
         addOption('is_eyebrow', title='Eyebrow', desc='使用眉毛输入，对性能有一定影响\n仅支持iFacialMocap', type=1,
                   default=True)
         addOption('osf', title='OpenSeeFace IP:Port', desc='输入OpenSeeFace连接使用的IP:端口号', type=2)
+        addOption('min_cutoff', title='Min CutOff', desc='输入滤波频率截断，\n越小越平滑，越大静止时越灵敏', 
+                  type=3, mapper=min_cutoff_mapper)
+        addOption('beta', title='Beta', desc='输入滤波速度补偿，\n越小越平滑，越大快速运动时越灵敏', 
+                  type=3, mapper=beta_mapper)
 
         addOption('output', title='Output', desc='选择输出目标',
                   choices=['Spout2', 'OBS VirtualCam', 'Debug Output'],
@@ -312,6 +373,13 @@ class LauncherPanel(wx.Panel):
                 self.optionSizer.Hide(self.optionDict['osf'])
             else:
                 self.optionSizer.Show(self.optionDict['osf'])
+            if s != 1 and s != 4:
+                self.optionSizer.Hide(self.optionDict['min_cutoff'])
+                self.optionSizer.Hide(self.optionDict['beta'])
+            else:
+                self.optionSizer.Show(self.optionDict['min_cutoff'])
+                self.optionSizer.Show(self.optionDict['beta'])
+
 
             self.frame.fSizer.Layout()
             self.frame.Fit()
@@ -340,7 +408,7 @@ class LauncherPanel(wx.Panel):
                 for c in presetControls: self.optionSizer.Hide(c)
             if s in presets:
                 opt = presets[s]
-                for i in range(5): presetControls[i].control.SetSelection(opt[i])
+                for i in range(4): presetControls[i].control.SetSelection(opt[i])
 
             self.frame.fSizer.Layout()
             self.frame.Fit()
@@ -510,6 +578,12 @@ class LauncherPanel(wx.Panel):
 
             if args['use_tensorrt'] is not None and args['use_tensorrt']:
                 run_args.append('--use_tensorrt')
+
+            run_args.append('--filter_min_cutoff')
+            run_args.append(str(min_cutoff_mapper(args['min_cutoff'])))
+
+            run_args.append('--filter_beta')
+            run_args.append(str(beta_mapper(args['beta'])))
 
             print('Launched: ' + ' '.join(run_args))
             p = subprocess.Popen(run_args)

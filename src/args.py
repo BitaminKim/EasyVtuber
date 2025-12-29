@@ -74,6 +74,9 @@ if args.simplify == 0:
 if not args.output_virtual_cam and not args.output_spout2: 
     args.output_debug = True # Default to debug output
 
+if args.output_spout2:
+    args.alpha_split = False  # Disable alpha split for spout2 output
+
 if not args.cam_input and args.mouse_input is None \
     and args.ifm_input is None and args.osf_input is None:
     args.debug_input = True  # Default to debug input
