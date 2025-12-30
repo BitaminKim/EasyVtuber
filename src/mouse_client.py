@@ -65,8 +65,7 @@ class MouseClientProcess(Process):
                 print(f"Failed to start audio capture: {e}")
                 print("Continuing without audio input...")
                 self.audio_running = False
-
-        audio_filter = OneEuroFilter(freq=self.audio_callback_fps.view(), mincutoff=10.0, beta=0.0)
+            audio_filter = OneEuroFilter(freq=self.audio_callback_fps.view(), mincutoff=10.0, beta=0.0)
         
         prev = {
             'eye_l_h_temp': 0,
