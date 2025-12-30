@@ -147,7 +147,7 @@ class ModelClientProcess(Process):
                 (bgra_image.shape[1], bgra_image.shape[0]))
 
             if args.output_debug:
-                cv2.putText(bgra_image, str('OUT_FPS:%.1f' % self.pipeline_fps_number.value), (0, 16), cv2.FONT_HERSHEY_PLAIN, 1,
+                cv2.putText(bgra_image, str('OUT_FPS:%.1f' % (self.pipeline_fps_number.value * args.interpolation_scale)), (0, 16), cv2.FONT_HERSHEY_PLAIN, 1,
                             (0, 255, 0), 1)
                 cv2.putText(bgra_image, str(
                     'GPU_FPS:%.1f' % (
