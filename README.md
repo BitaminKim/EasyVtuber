@@ -19,6 +19,7 @@ Updates:
 * 使用 [waifu2x](https://github.com/nagadomi/waifu2x) 和 [real-esrgan](https://github.com/xinntao/Real-ESRGAN) 项目带来的输出超分辨率，对比anime4k效果提升显著（也使用更多gpu占用）  
 * 更漂亮的 WxPython 新启动器界面，带中文介绍更加简单易用  
 * 添加Spout2 支持输出原生透明通道给OBS
+* 添加 [THA V4](https://github.com/pkhungurn/talking-head-anime-4-demo) 支持，拥有更好的图形输出
 
 ## Requirements  
 
@@ -43,7 +44,7 @@ Updates:
 使用Spout2插件可以提供透明通道给OBS，访问 https://github.com/Off-World-Live/obs-spout2-plugin/releases 项目，请选择与你的OBS版本兼容的插件安装exe。
 
 ### 启动项目
-双击`02A.启动器.bat` 或 `02B.启动器（调试输出）.bat` 启动器，如下图启动。
+双击`01A.启动器.bat` 或 `01B.启动器（调试输出）.bat` 启动器，如下图启动。
 ![](assets/02success.png)   
 之后请移步后文的输入输出&性能配置板块自行调节。如有问题请先参考本页末的FAQ再提出。
 
@@ -240,3 +241,27 @@ A卡I卡使用 DirectML，这个框架与显卡厂商的显卡驱动及 Direct12
 > Q6: 本机有两张显卡，如何使用第二张副卡使用这个项目？
 
 在运行前配置环境变量`EZVTB_DEVICE_ID`为你想要运行的GPU ID,此变量缺省为`0`
+
+## References
+```
+@inproceedings{huang2022rife,
+  title={Real-Time Intermediate Flow Estimation for Video Frame Interpolation},
+  author={Huang, Zhewei and Zhang, Tianyuan and Heng, Wen and Shi, Boxin and Zhou, Shuchang},
+  booktitle={Proceedings of the European Conference on Computer Vision (ECCV)},
+  year={2022}
+}
+@misc{Khungurn:2022,
+    author = {Pramook Khungurn},
+    title = {Talking Head(?) Anime from a Single Image 3: Now the Body Too},
+    howpublished = {\url{http://pkhungurn.github.io/talking-head-anime-3/}},
+    year = 2022,
+    note = {Accessed: YYYY-MM-DD},
+}
+
+@InProceedings{wang2021realesrgan,
+    author    = {Xintao Wang and Liangbin Xie and Chao Dong and Ying Shan},
+    title     = {Real-ESRGAN: Training Real-World Blind Super-Resolution with Pure Synthetic Data},
+    booktitle = {International Conference on Computer Vision Workshops (ICCVW)},
+    date      = {2021}
+}
+```

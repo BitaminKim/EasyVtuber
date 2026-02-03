@@ -1,6 +1,6 @@
 import os 
 import sys
-
+from .args import args
 dir_path = os.path.dirname(os.path.realpath(__file__))
 ezvtb_path = os.path.join(dir_path, "..", "ezvtuber-rt")
 ezvtb_main_path = os.path.join(dir_path, "..", 'ezvtuber-rt-main')
@@ -45,6 +45,7 @@ def get_core(
             from ezvtb_rt.core_trt import CoreTRT as Core
         except:
             print("TensorRT is not available, fallback to ONNX Runtime.")
+            args.use_tensorrt = False
             from ezvtb_rt.core_ort import CoreORT as Core
     else:
         from ezvtb_rt.core_ort import CoreORT as Core
@@ -69,9 +70,3 @@ def get_core(
     )
     return core
     
-if __name__ == '__main__':
-    try:
-        from ezvtb_rt.trt_utils import check_build_all_models
-        check_build_all_models()
-    except:
-        print("TensorRT not available, skip building TRT models.")

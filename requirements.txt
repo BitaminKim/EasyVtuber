@@ -1,6 +1,5 @@
 numpy
 scipy
-matplotlib
 protobuf
 pynput
 mediapipe==0.10.11

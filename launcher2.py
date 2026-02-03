@@ -318,7 +318,7 @@ class LauncherPanel(wx.Panel):
         addOption('beta', title='Beta', desc='输入滤波速度补偿，\n越小越平滑，越大运动时越灵敏', 
                   type=3, mapper=beta_mapper)
 
-        addOption('breath_cycle', title='Breath Cycle', desc='设置呼吸循环时间',
+        addOption('breath_cycle', title='Breath Cycle', desc='设置呼吸循环时间(会增加占用)',
                   choices=['No Breath', '3 seconds', '5 seconds', '7 seconds'],
                   mapping=['inf', '3.0', '5.0', '7.0'])
 
