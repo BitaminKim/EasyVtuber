@@ -1,4 +1,4 @@
 [submodule "ezvtuber-rt"]
 	path = ezvtuber-rt
-	url = https://github.com/nick-haoran/ezvtuber-rt.git
+	url = git@github.com:yuyuyzl/ezvtuber-rt.git
 	branch = tha4
