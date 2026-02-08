@@ -119,13 +119,15 @@ def main():
             if last_time < now:
                 last_time = now
             ret_batch_shm_channels[i].release()
+        output_pipeline_fps_val = pipeline_fps() * args.interpolation_scale
+        infer_process.output_pipeline_fps.value = output_pipeline_fps_val
         print("Infer Process FPS: {:.2f}, Input FPS: {:.2f}, Model Avg Interval: {:.2f} ms, Cache Hit Ratio: {:.2f}%, GPU Cache Hit Ratio: {:.2f}%, Output Pipeline FPS {:.5f}".format(
             infer_process.pipeline_fps_number.value,
             input_fps.value,
             infer_process.average_model_interval.value * 1000,
             infer_process.cache_hit_ratio.value * 100,
             infer_process.gpu_cache_hit_ratio.value * 100,
-            pipeline_fps() * args.interpolation_scale
+            output_pipeline_fps_val
         ), end ='\r', flush=True)
 
 if __name__ == "__main__":
