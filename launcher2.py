@@ -1,6 +1,7 @@
 import ctypes
 import os
 import subprocess
+import threading
 
 import wx
 import json
@@ -251,12 +252,89 @@ class OptionPanel(wx.Panel):
             return ret
 
 
+def _important_log_line(line):
+    """从 main 的一行日志中提取“重要”的简短描述，用于状态栏；无关行返回 None。"""
+    line = line.strip()
+    if not line:
+        return None
+    if line.startswith('Launched:'):
+        return 'Launched'
+    if 'Model Inference Ready' in line:
+        return 'Model Inference Ready'
+    # TRT: Building engine from ONNX: ...\filename.onnx
+    if '[TRT]' in line and 'Building engine from ONNX:' in line:
+        idx = line.find('Building engine from ONNX:')
+        if idx != -1:
+            path = line[idx + len('Building engine from ONNX:'):].strip().rstrip('\r\n')
+            name = os.path.basename(path)
+            if name:
+                return f'Building: {name}'
+    # TRT: Loading ONNX file from path ...\filename.onnx
+    if '[TRT]' in line and 'Loading ONNX file from path' in line:
+        idx = line.find('Loading ONNX file from path')
+        if idx != -1:
+            path = line[idx + len('Loading ONNX file from path'):].strip().strip('.').strip().rstrip('\r\n')
+            name = os.path.basename(path)
+            if name:
+                return f'Loading: {name}'
+    # ORT: Loading ONNX model from path ...\filename.onnx
+    if '[ORT]' in line and 'Loading ONNX model from path' in line:
+        idx = line.find('Loading ONNX model from path')
+        if idx != -1:
+            path = line[idx + len('Loading ONNX model from path'):].strip().strip('.').strip().rstrip('\r\n')
+            name = os.path.basename(path)
+            if name:
+                return f'Loading: {name}'
+    # ORT: Completed loading session: xxx.onnx
+    if '[ORT]' in line and 'Completed loading session:' in line:
+        idx = line.find('Completed loading session:')
+        if idx != -1:
+            name = line[idx + len('Completed loading session:'):].strip().rstrip('\r\n')
+            if name:
+                return f'Loaded: {name}'
+    return None
+
+
+def _on_main_log_line(panel, line):
+    """在子线程中调用：若该行是重要日志，则用 wx.CallAfter 更新 panel 的状态框。"""
+    display = _important_log_line(line)
+    if display is not None:
+        wx.CallAfter(panel.statusCtrl.SetValue, display)
+
+
+def _read_pipe_to_stream(pipe, dest_stream, out_lines=None, on_line_callback=None):
+    """从 pipe 读行，写回 dest_stream，可选追加到 out_lines，并对每行调用 on_line_callback(line)。"""
+    if pipe is None:
+        return
+    try:
+        for raw in iter(pipe.readline, b''):
+            try:
+                text = raw.decode('utf-8', errors='replace')
+            except Exception:
+                text = raw.decode('gbk', errors='replace')
+            if out_lines is not None:
+                out_lines.append(text)
+            if on_line_callback is not None:
+                on_line_callback(text)
+            dest_stream.write(text)
+            dest_stream.flush()
+    except Exception:
+        pass
+    finally:
+        try:
+            pipe.close()
+        except Exception:
+            pass
+
+
 class LauncherPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
         self.number_of_buttons = 0
         self.frame = parent
         self.optionDict = {}
+        self.main_output_lines = []   # main 的 stdout 副本
+        self.main_stderr_lines = []   # main 的 stderr 副本
         self.mainSizer = wx.BoxSizer(wx.VERTICAL)
         controlSizer = wx.BoxSizer(wx.HORIZONTAL)
         self.widgetSizer = wx.BoxSizer(wx.VERTICAL)
@@ -272,7 +350,16 @@ class LauncherPanel(wx.Panel):
         f = f.MakeLarger()
         stVtuber.SetFont(f)
         controlSizer.Add(stEasy, 0, wx.ALL | wx.CENTER, 0)
-        controlSizer.Add(stVtuber, 1, wx.RIGHT | wx.CENTER, 30)
+        controlSizer.Add(stVtuber, 0, wx.RIGHT | wx.CENTER, 30)
+
+        self.statusCtrl = wx.TextCtrl(
+            self, wx.ID_ANY, '',
+            style=wx.TE_READONLY | wx.BORDER_NONE | wx.TE_RIGHT,
+        )
+        self.statusCtrl.SetHint('当前操作')
+        f = self.statusCtrl.GetFont()
+        self.statusCtrl.SetFont(f.Smaller())
+        controlSizer.Add(self.statusCtrl, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 8)
 
         self.btnLaunch = wx.Button(self, label="Save && Launch")
         self.btnLaunch.Bind(wx.EVT_BUTTON, self.OnLaunch)
@@ -522,6 +609,7 @@ class LauncherPanel(wx.Panel):
             subprocess.run(['taskkill', '/F', '/PID', str(p.pid), '/T'], stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL)
             p = None
+            self.statusCtrl.Clear()
             self.btnLaunch.SetLabelText("Save & Launch")
         else:
             run_args = [sys.executable, '-m', 'src.main']
@@ -652,7 +740,25 @@ class LauncherPanel(wx.Panel):
             run_args.append(str(beta_mapper(args['beta'])))
 
             print('Launched: ' + ' '.join(run_args))
-            p = subprocess.Popen(run_args)
+            self.main_output_lines.clear()
+            self.main_stderr_lines.clear()
+            self.statusCtrl.SetValue('Launched')
+            on_line = lambda line: _on_main_log_line(self, line)
+            p = subprocess.Popen(
+                run_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            threading.Thread(
+                target=_read_pipe_to_stream,
+                args=(p.stdout, sys.stdout, self.main_output_lines, on_line),
+                daemon=True,
+            ).start()
+            threading.Thread(
+                target=_read_pipe_to_stream,
+                args=(p.stderr, sys.stderr, self.main_stderr_lines, on_line),
+                daemon=True,
+            ).start()
             self.btnLaunch.SetLabelText('Stop')
 
 
