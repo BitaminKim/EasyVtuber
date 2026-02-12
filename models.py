@@ -1,5 +1,6 @@
 import time
 
+import torch
 import torch.nn as nn
 
 import tha2.poser.modes.mode_20
@@ -12,6 +13,14 @@ from torch.nn.functional import interpolate
 from args import args
 
 from collections import OrderedDict
+
+# THA4 适配器导入
+try:
+    from tha4_adapter import THA4Wrapper
+    THA4_AVAILABLE = True
+except ImportError:
+    THA4_AVAILABLE = False
+    print("Warning: THA4 adapter not available")
 
 
 class TalkingAnimeLight(nn.Module):
@@ -171,3 +180,58 @@ class TalkingAnime(nn.Module):
         rotate_image = self.two_algo_face_rotator(x, pose_vector)[:2]
         output_image = self.combiner(rotate_image[0], rotate_image[1], pose_vector)
         return output_image
+
+
+class TalkingAnime4(nn.Module):
+    """
+    THA4 model class, compatible with THA3 TalkingAnime3 interface
+    Uses THA4's Siren architecture for inference
+    PyTorch only, float32 precision
+    """
+    def __init__(self, device):
+        super(TalkingAnime4, self).__init__()
+        if not THA4_AVAILABLE:
+            raise RuntimeError(
+                "THA4 adapter not available. Check tha4_adapter.py"
+            )
+        
+        # Create THA4 wrapper
+        self.wrapper = THA4Wrapper(device=device)
+        
+        print("THA4 model initialized (float32)")
+    
+    def forward(self, image, mouth_eye_vector, pose_vector, eyebrow_vector,
+                mouth_eye_vector_c, eyebrow_vector_c, ratio=None):
+        """
+        Forward inference, compatible with THA3 interface
+        
+        Args:
+            image: [batch, 4, 512, 512]
+            mouth_eye_vector: [batch, 27]
+            pose_vector: [batch, 6]
+            eyebrow_vector: [batch, 12]
+            mouth_eye_vector_c: compressed (for caching)
+            eyebrow_vector_c: compressed (for caching)
+            ratio: GPU cache hit ratio
+            
+        Returns:
+            output_image: [batch, 4, 512, 512]
+        """
+        if args.perf == 'model':
+            tic = time.perf_counter()
+        
+        # Call THA4 wrapper
+        output_image = self.wrapper.forward(
+            image, mouth_eye_vector, pose_vector, eyebrow_vector,
+            mouth_eye_vector_c, eyebrow_vector_c, ratio
+        )
+        
+        if args.perf == 'model':
+            print(" - tha4_inference", (time.perf_counter() - tic) * 1000)
+        
+        return output_image
+    
+    def to(self, device):
+        """Move model to specified device"""
+        self.wrapper.to(device)
+        return super().to(device)
